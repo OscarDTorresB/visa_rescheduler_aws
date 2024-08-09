@@ -56,13 +56,14 @@ STEP_TIME = 0.5  # time between steps (interactions with forms): 0.5 seconds
 DATE_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/days/{FACILITY_ID}.json?appointments[expedite]=false"
 TIME_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/times/{FACILITY_ID}.json?date={{date}}&appointments[expedite]=false"
 APPOINTMENT_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment"
+REDIRECTED_URL = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/instructions"
 DATE_URL_ASC = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/days/{ASC_ID}.json?&consulate_id={FACILITY_ID}&consulate_date={{date}}&consulate_time={{time}}&appointments[expedite]=false"
 TIME_URL_ASC = f"https://ais.usvisa-info.com/{COUNTRY_CODE}/niv/schedule/{SCHEDULE_ID}/appointment/times/{ASC_ID}.json?date={{date_asc}}&consulate_id={FACILITY_ID}&consulate_date={{date}}&consulate_time={{time}}&appointments[expedite]=false"
 
 code = COUNTRY_CODE.split("-")
 code[1] = code[1].upper()
 code = str.join("_", code)
-locale.setlocale(locale.LC_ALL, f'{code}.UTF-8')
+locale.setlocale(locale.LC_ALL, f'es_ES.UTF-8')
 
 
 class Use(Enum):
@@ -211,14 +212,26 @@ class VisaScheduler:
         headers = {
             "User-Agent": self.driver.execute_script("return navigator.userAgent;"),
             "Referer": APPOINTMENT_URL,
-            "Cookie": "_yatri_session=" + self.driver.get_cookie("_yatri_session")["value"]
+            "Cookie": "_yatri_session=" + self.driver.get_cookie("_yatri_session")["value"],
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Host": "ais.usvisa-info.com",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive"
         }
 
         r = requests.post(APPOINTMENT_URL, headers=headers, data=data)
+        print(r.url, r.status_code)
         if r.status_code == 200:
-            msg = f"Rescheduled Successfully! {date} {time}" + f", ASC: {asc_date} {asc_time}" if NEED_ASC else ""
+            msg = f"Rescheduled Successfully! {date} {time}"
             self.send_notification(msg)
-            return Result.SUCCESS
+            # if date is earlier than 2025, then success
+            if date < "2025-01-01":
+                return Result.SUCCESS
+            else:
+                return Result.RETRY
         else:
             msg = f"Reschedule Failed. {date} {time}" + f", ASC: {asc_date} {asc_time}" if NEED_ASC else ""
             self.send_notification(msg)
@@ -348,6 +361,10 @@ class VisaScheduler:
         logger.info("Available dates:")
         for d in dates:
             logger.info("%s \t business_day: %s" % (d.get('date'), d.get('business_day')))
+
+    def close_browser(self):
+        tm.sleep(60)
+        self.driver.quit()
 
     def main(self) -> Result:
         # RETRY_TIME

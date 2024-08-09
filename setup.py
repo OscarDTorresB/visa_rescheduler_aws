@@ -13,10 +13,13 @@ def as_loop():
         result = handler.main()
 
         if result == Result.RETRY:
+            handler.close_browser()
             time.sleep(Time.RETRY_TIME)
         elif result == Result.COOLDOWN:
+            handler.close_browser()
             time.sleep(Time.COOLDOWN_TIME)
         elif result == Result.EXCEPTION:
+            handler.close_browser()
             time.sleep(Time.EXCEPTION_TIME)
         else:
             break
